@@ -24,6 +24,8 @@ This implementation requires mbedTLS 3.0.
 ```c
 #include "blindsignatures_rsa.h"
 
+int main()
+{
 	int ret;
 	mbedtls_rsa_context rsa;
 	mbedtls_entropy_context entropy;
@@ -101,4 +103,5 @@ EXIT:
 	mbedtls_mpi_free(&e); mbedtls_mpi_free(&blind_message); mbedtls_mpi_free(&signature);
 
 	return 0;
+}
 ```
