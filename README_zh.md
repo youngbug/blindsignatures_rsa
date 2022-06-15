@@ -1,24 +1,32 @@
+# blindsignatures_rsa
+
+[English](README.md) | 中文
+
+这个项目是基于mbedTLS大数运算库实现的RSA盲签名算法。
+
+## 简介
+盲签名算法方案包含双方，用户Alice（信息的拥有者）希望对他的消息进行签名，签名者Bob（不允许他知道信息的具体内容）控制着签名私钥。Alice可以在Bob不获知消息具体内容的前提下，让Bob完成对消息的签名。
+
+## RSA盲签名
+RSA盲签名是盲签名方案中一个最简单的实现。
+
+步骤：
+
+- Alice选择一个随机数k
+- Alice对原始的消息进行计算，$m' = m k^e (mod \ n)$ 并把计算后（盲化）的消息 $m'$发送给Bob
+- Bob计算 $s' = (m')^d (mod \ n)$ 并把计算后的签名值 $s'$ 发送给Alice
+- Alice计算 $s = s'k^{-1} (mod \ n)$，$s$ 就是Bob对原始消息 $m$的数字签名
+
+
+## 依赖
+
+这个实现需要mbedTLS 3.0
+
+## 用法
+
+```c
 #include "blindsignatures_rsa.h"
-#include <mbedtls/rsa.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/bignum.h>
 
-void showdata(unsigned char* buf, int len)
-{
-	int i;
-	for (i = 0; i < len; i++)
-	{
-		printf("%02X ", buf[i]);
-		if (i % 32 == 31)
-			printf("\r\n");
-	}
-	if (len % 32 != 31)
-		printf("\r\n");
-}
-
-int main()
-{
 	int ret;
 	mbedtls_rsa_context rsa;
 	mbedtls_entropy_context entropy;
@@ -39,7 +47,7 @@ int main()
 	mbedtls_mpi_init(&e); mbedtls_mpi_init(&blind_message); mbedtls_mpi_init(&signature);
 
 
-	//1.Generate RSA key pairs.
+	//1.生成RSA密钥对.
 	printf("\r\n1. Generate RSA key pairs.\r\n");
 	if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
 		(const unsigned char*)pers,
@@ -55,10 +63,7 @@ int main()
 		goto EXIT;
 	}
 
-	//2.Blind message.
-	printf("2. Blind message.\r\n");
-	printf("Message:\r\n");
-	showdata(message_buffer, 8);
+	//2.盲化原始消息.
 	if ((ret = mbedtls_mpi_read_binary(&m, message_buffer, 8)) != 0)
 	{
 		printf("mbedtls_mpi_read_binary failed ret=%08X\r\n", ret);
@@ -69,58 +74,29 @@ int main()
 		printf("mbedtls_mpi_read_binary failed ret=%08X\r\n", ret);
 		goto EXIT;
 	}
-	/*if ((ret = mbedtls_mpi_read_binary(&e, "\x00\x01\x00\x01", 4)) != 0)
-	{
-		printf("mbedtls_mpi_read_binary failed ret=%08X\r\n", ret);
-		goto EXIT;
-	}*/
+
 	if ((ret = blindsignature_hide_message(&m, &blind_factor, &rsa.private_E, &rsa.private_N, &blind_message)) != 0)
 	{
 		printf("blindsignature_hide_message failed ret=%08X\r\n", ret);
 		goto EXIT;
 	}
-	memset(buffer1, 0, 128);
-	mbedtls_mpi_write_binary(&blind_message, buffer1, 128);
-	printf("Blind message:\r\n");
-	showdata(buffer1, 128);
 
-	//3.Calculate blind signature
+	//3.签名方计算签名
 	printf("3.Calculate blind signature.\r\n");
 	if ((ret = blindsignature_sign(&blind_message, &rsa.private_D, &rsa.private_N, &signature)) != 0)
 	{
 		printf("blindsignature_sign failed ret=%08X\r\n", ret);
 		goto EXIT;
 	}
-	memset(buffer1, 0, 128);
-	mbedtls_mpi_write_binary(&signature, buffer1, 128);
-	printf("Blind signature:\r\n");
-	showdata(buffer1, 128);
 
-	//4.Unblind signature
+	//4.消息持有方去盲化获得真正的签名
 	printf("4.Unblind signature\r\n");
 	if ((ret = blindsignature_unblind_sign(&signature, &blind_factor, &rsa.private_N, &signature)) != 0)
 	{
 		printf("Unblind signature: blindsignature_unblind_sign failed ret=%08X\r\n", ret);
 		goto EXIT;
 	}
-	
-	memset(buffer1, 0, 128);
-	mbedtls_mpi_write_binary(&signature, buffer1, 128);
-	printf("Unblind signature:\r\n");
-	showdata(buffer1, 128);
 
-	//5.Check signature
-	printf("5.Calculate signature.\r\n");
-	mbedtls_mpi_init(&signature);
-	if ((ret = blindsignature_sign(&m, &rsa.private_D, &rsa.private_N, &signature)) != 0)
-	{
-		printf("blindsignature_sign failed ret=%08X\r\n", ret);
-		goto EXIT;
-	}
-	memset(buffer2, 0, 128);
-	mbedtls_mpi_write_binary(&signature, buffer2, 128);
-	printf("Nomral RSA Signature:\r\n");
-	showdata(buffer2, 128);
 
 EXIT:
 	mbedtls_rsa_free(&rsa);
@@ -128,4 +104,4 @@ EXIT:
 	mbedtls_mpi_free(&e); mbedtls_mpi_free(&blind_message); mbedtls_mpi_free(&signature);
 
 	return 0;
-}
+```
