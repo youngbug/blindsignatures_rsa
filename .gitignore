@@ -50,3 +50,13 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+#Visual Studio files
+.vs/
+x64/
+x86/
+Release/
+Debug/
+
+#mbedtls library
+mbedtls/
